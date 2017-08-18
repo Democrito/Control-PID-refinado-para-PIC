@@ -1,2 +1,7 @@
-# Control-PID-refinado-para-PIC
-Control PID basado en el algoritmo publicado por Brett Beauregard: http://brettbeauregard.com/blog/wp-content/uploads/2012/07/Gu%C3%ADa-de-uso-PID-para-Arduino.pdf 
+ # Control-PID-refinado
+  
+ -![](https://sites.google.com/site/proyectosroboticos/_/rsrc/1502075797093/control-de-motores/control-pid-con-libreria/Arduino_PID_Control.png)
+ +![](https://sites.google.com/site/proyectosroboticos/control-de-motores/control-pid-con-libreria/Arduino_PID_Control.png)
+  
+  
+  Es el control PID de Brett Beauregard con unas líneas añadidas para darle un control más suave y menos brusco.
