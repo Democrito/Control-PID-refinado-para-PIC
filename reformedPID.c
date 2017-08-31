@@ -10,7 +10,7 @@
 #include <math.h>
 
 #use delay(clock=48000000)                                                  // El PIC está funcionando a 48MHz gracias al PLL interno.
-#use timer(TIMER=1, TICK=1ms, BITS=16, ISR)                                 // Activa un "Timer" en el que incrementa un contador interno (de 16 bits) cada 0.68239ms.
+#use timer(TIMER=1, TICK=1ms, BITS=16, ISR)                                 // Activa un "Timer" en el que incrementa un contador interno (de 16 bits) cada 0.68239ms. Más abajo se configura el TIMER1 para habilitar esta parte. 
 
 #byte porta = 0xF80                                                         // Dirección del puerto A para la familia 18Fxx5x.
 #byte portb = 0xF81                                                         // Dirección del puerto B para la familia 18Fxx5x.
@@ -70,22 +70,23 @@ void Compute(void)
    {                                                                      
       Inp = (double)contador;                                               // Carga en Inp la posición del encoder.
       // Calcula todos los errores.
-      error = (Setpoint - Inp) * kp;
+      
+      error = (Setpoint - Inp)   * kp;
       dInput = (Inp - lastInput) * kd;
       
-      if ((dInput == 0.0) || (abs(error) == 0.0)) ITerm += (error * ki); else ITerm -= (dInput / (kp * ki * kd));
+      if ((dInput == 0.0) || (error == 0.0)) ITerm += (error * ki); else ITerm -= (error * ki); // Cuando tengas el PID ajustado prueba a cambiar esta línea por esta otra: if ((dInput == 0.0) || (error == 0.0)) ITerm += (error * ki); else ITerm -= (dInput / (kp * ki * kd) );
       if (ITerm > outMax) ITerm = outMax; else if (ITerm < outMin) ITerm = outMin;
       
       // Calculamos la función de salida del PID.
-      out = error + ITerm - dInput;  
+      out = error + ITerm - dInput;                                         // Salida del controlador PID. Contiene el valor PWM y el signo será para girar en un sentido o en el otro.
       if (out > outMax) out = outMax; else if (out < outMin) out = outMin;
       // Guardamos el valor de algunas variables para el próximo recálculo.
       lastInput = Inp;
-      lastTime = now;
+      lastTime  = now;
    }
 }
   
-void SetTunings(double kp, double ki, double kd)                            // A las constantes PID se le incluye el tiempo, de esta manera evitamos repetir cálculos.
+void SetTunings(double kp, double ki, double kd)                            // A las constantes KI y KD se le incluye el tiempo, de esta manera evitamos repetir cálculos en Compute().
 {
    double SampleTimeInSec = (double)SampleTime / 1000.0;
    kp = kp;
@@ -95,12 +96,12 @@ void SetTunings(double kp, double ki, double kd)                            // A
  
 void SetSampleTime(int16 NewSampleTime)
 {
-   if (NewSampleTime > 0) SampleTime = NewSampleTime;                       // Tiempo de muestreo, ha de ser mayor o igual a 1.
+   if (NewSampleTime > 0) SampleTime = NewSampleTime;                       // Tiempo de muestreo, obliga de ser mayor o igual a 1.
 }
                    
 void main(void)
 {  
-   set_tris_a(0b111111);                                                    // En B7 existe un led para avisar de que se ha llegado al punto designado.
+   set_tris_a(0b111111);                                                    // En B7 existe un led para avisar que está en la meta designada.
    set_tris_b(0b01111111);                                                  // B0 y B1 son las entradas del encoder. B0 corresponde a la interrupción externa.
    set_tris_c(0b11111001);                                                  // C1 y C2 son las salidas hardware PWM de los 18Fxx5x.
    set_tris_d(0b11111111);
@@ -118,7 +119,7 @@ void main(void)
    setup_comparator(NC_NC_NC_NC);
    setup_vref(false);
    
-   setup_timer_1(t1_internal|t1_div_by_1);                                  // Configuración del TIMER1 para el tiempo de muestreo del control PID.
+   setup_timer_1(t1_internal|t1_div_by_1);                                  // Configuración del TIMER1 para el tiempo de muestreo del control PID. Esta línea es importante, de otra manera no funcionaría la línea de arriba "#use timer(TIMER=1, TICK=1ms, BITS=16, ISR)".
    setup_timer_2(t2_div_by_1, 255, 1);                                      // Frecuencia de la señal PWM.
    setup_ccp1(CCP_PWM);                                                     // Configura CCP1 como PWM y sale por la patilla C2.
    setup_ccp2(CCP_PWM);                                                     // Configura CCP2 como PWM y sale por la patilla C1.
@@ -127,8 +128,8 @@ void main(void)
    enable_interrupts(int_ext);                                              // Activa interrupción externa. 
    enable_interrupts(GLOBAL);                                               // Activa interrupciones globales.
    
-   outMax =  255.0;                                                         // Límite máximo del controlador PID.
-   outMin = -outMax;                                                        // Límite mínimo del controlador PID.
+   outMax =  255.0;                                                         // Límite máximo del controlador PID. 0...255 ---> hacia delante.
+   outMin = -outMax;                                                        // Límite mínimo del controlador PID. 0..-255 ---> hacia atrás.
    
    SetSampleTime(25);                                                       // Tiempo de muestreo en milisegundos. (En realidad cada tick es de 682,39 microsegundos.)
    
@@ -137,13 +138,13 @@ void main(void)
    kd = 25.0;
    
    SetTunings(kp, ki, kd);                                                  // Calcula las constantes de sintonización.
-   Setpoint=0.0;                                                            // Posición inicial.
+   Setpoint=(double)contador;                                               // Posición inicial igual a la del encoder para evitar que al ponerlo en marcha haga cosas extrañas.
    
    while(true)
    {
       Compute();                                                            // Realiza los cálculos PID y el valor se guardará en la variable global "out".
       
-      if (abs(error) == 0.0)                                                // Motor parado cuando el motor está posicionado.
+      if (error == 0.0)                                                     // Motor parado cuando el motor está posicionado.
       {
          set_pwm1_duty(0);
          set_pwm2_duty(0);
@@ -153,7 +154,7 @@ void main(void)
       {
          output_low(PIN_B7);                                                // Apaga el led cuando el motor se está posicionando.
          
-         pwm=(int8)abs(out);                                                // Convierte "out" a un valor siempre positivo y lo formatea a 8 bits de resolución.
+         pwm=(int8)abs(out);                                                // Convierte "out" a un valor siempre positivo y lo formatea a 8 bits de resolución. Es el PWM.
          
          if (out > 0.0)                                                     // Motor hacia delante con el PWM correspondiente.
          {
