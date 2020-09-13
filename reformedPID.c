@@ -74,7 +74,7 @@ void Compute(void)
       error = (Setpoint - Inp)   * kp;
       dInput = (Inp - lastInput) * kd;
       
-      if ((dInput == 0.0) || (error == 0.0)) ITerm += (error * ki); else ITerm -= (error * ki); // Cuando tengas el PID ajustado prueba a cambiar esta línea por esta otra: if ((dInput == 0.0) || (error == 0.0)) ITerm += (error * ki); else ITerm -= (dInput * ki);
+      if (dInput == 0.0)  ITerm += (error * ki); else ITerm -= (error * ki); // Cuando tengas el PID ajustado prueba a cambiar esta línea por esta otra: if ((dInput == 0.0) || (error == 0.0)) ITerm += (error * ki); else ITerm -= (dInput * ki);
       if (ITerm > outMax) ITerm = outMax; else if (ITerm < outMin) ITerm = outMin;
       
       // Calculamos la función de salida del PID.
